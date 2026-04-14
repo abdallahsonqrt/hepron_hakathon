@@ -18,6 +18,8 @@ from cds_shared.kafka_client import CDSKafkaProducer
 from cds_shared.audit import AuditProducer
 from cds_shared.observability import setup_tracing, setup_metrics, CDSTracingMiddleware
 
+from routers import catalog, mdm
+
 # ── Logging setup ─────────────────────────────────────────────
 structlog.configure(
     processors=[
@@ -99,6 +101,10 @@ app.add_middleware(CDSTracingMiddleware, service_name=settings.SERVICE_NAME)
 # Prometheus metrics
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+
+# Router inclusion
+app.include_router(catalog.router)
+app.include_router(mdm.router)
 
 
 @app.get("/health/live", tags=["health"])
