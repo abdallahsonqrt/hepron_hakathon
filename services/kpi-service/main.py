@@ -18,7 +18,9 @@ from cds_shared.kafka_client import CDSKafkaProducer
 from cds_shared.audit import AuditProducer
 from cds_shared.observability import setup_tracing, setup_metrics, CDSTracingMiddleware
 
-from routers import registry
+import threading
+from workers.computation_worker import ComputationWorker
+from routers import registry, trends
 
 # ── Logging setup ─────────────────────────────────────────────
 structlog.configure(
@@ -58,6 +60,12 @@ async def lifespan(app: FastAPI):
     # 3. Observability
     setup_tracing(settings.SERVICE_NAME, settings.OTEL_EXPORTER_OTLP_ENDPOINT)
     setup_metrics(settings.SERVICE_NAME)
+
+    # 4. Computation Worker (Background)
+    worker = ComputationWorker()
+    thread = threading.Thread(target=worker.run, daemon=True)
+    thread.start()
+    app.state.computation_worker = worker
 
     logger.info("kpi_service_ready")
     yield
@@ -104,6 +112,7 @@ app.mount("/metrics", metrics_app)
 
 # Router inclusion
 app.include_router(registry.router)
+app.include_router(trends.router)
 
 
 @app.get("/health/live", tags=["health"])
