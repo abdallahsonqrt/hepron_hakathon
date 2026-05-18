@@ -16,7 +16,8 @@ from cds_shared.config import settings
 from cds_shared.database import init_db
 from cds_shared.kafka_client import CDSKafkaProducer
 from cds_shared.audit import AuditProducer
-from cds_shared.observability import setup_tracing, setup_metrics, CDSTracingMiddleware
+import threading
+from workers.standardization_worker import StandardizationWorker
 
 # ── Logging setup ─────────────────────────────────────────────
 structlog.configure(
@@ -56,6 +57,12 @@ async def lifespan(app: FastAPI):
     # 3. Observability
     setup_tracing(settings.SERVICE_NAME, settings.OTEL_EXPORTER_OTLP_ENDPOINT)
     setup_metrics(settings.SERVICE_NAME)
+
+    # 4. Processing Worker (Background)
+    worker = StandardizationWorker()
+    thread = threading.Thread(target=worker.run, daemon=True)
+    thread.start()
+    app.state.worker = worker
 
     logger.info("processing_service_ready")
     yield

@@ -18,6 +18,8 @@ from cds_shared.kafka_client import CDSKafkaProducer
 from cds_shared.audit import AuditProducer
 from cds_shared.observability import setup_tracing, setup_metrics, CDSTracingMiddleware
 
+import threading
+from workers.delivery_worker import NotificationDeliveryWorker
 # ── Logging setup ─────────────────────────────────────────────
 structlog.configure(
     processors=[
@@ -56,6 +58,12 @@ async def lifespan(app: FastAPI):
     # 3. Observability
     setup_tracing(settings.SERVICE_NAME, settings.OTEL_EXPORTER_OTLP_ENDPOINT)
     setup_metrics(settings.SERVICE_NAME)
+
+    # 4. Notification Delivery Worker (Background)
+    worker = NotificationDeliveryWorker()
+    thread = threading.Thread(target=worker.run, daemon=True)
+    thread.start()
+    app.state.delivery_worker = worker
 
     logger.info("notification_service_ready")
     yield
